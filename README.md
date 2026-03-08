@@ -38,7 +38,7 @@ Typ: `analysis` (assimilierte Beobachtungsdaten).
 #    https://ads.atmosphere.copernicus.eu/
 
 # 2. API-Key in ~/.cdsapirc
-echo "url: https://ads.atmosphere.copernicus.eu/api/v2
+echo "url: https://ads.atmosphere.copernicus.eu/api
 key: DEIN-API-KEY" > ~/.cdsapirc
 
 # 3. Lizenz einmalig im Browser akzeptieren
