@@ -23,7 +23,7 @@ jobs:
 
       - name: Write CAMS API credentials
         run: |
-          echo "url: https://ads.atmosphere.copernicus.eu/api/v2" > ~/.cdsapirc
+          echo "url: https://ads.atmosphere.copernicus.eu/api" > ~/.cdsapirc
           echo "key: ${{ secrets.CAMS_API_KEY }}" >> ~/.cdsapirc
 
       - name: Generate plot
