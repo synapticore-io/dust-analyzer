@@ -9,6 +9,22 @@ from dust_analyzer import cache, cams
 from dust_analyzer.location import parse_args, resolve_location
 
 
+def _enrich_from_cache(cached: dict) -> dict:
+    """Fügt label/color aus VARIABLES-Definition zu Cache-DataFrames hinzu."""
+    enriched = {}
+    for key, df in cached.items():
+        if key not in cams.VARIABLES:
+            continue
+        _, _, label, color = cams.VARIABLES[key]
+        enriched[key] = {
+            "time":   df["time"].values,
+            "values": df["value"].values,
+            "label":  label,
+            "color":  color,
+        }
+    return enriched
+
+
 def main() -> None:
     args = parse_args()
     loc  = resolve_location(args)
@@ -18,7 +34,9 @@ def main() -> None:
     # Cache prüfen
     series = None
     if not args.no_cache:
-        series = cache.get(loc.lat, loc.lon, date_from, date_to)
+        cached = cache.get(loc.lat, loc.lon, date_from, date_to)
+        if cached:
+            series = _enrich_from_cache(cached)
 
     # CAMS Download wenn kein Cache-Treffer
     if series is None:
