@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environment
+.venv
+
+# IDE
+.idea/
+
+# Local data — nicht ins Repo
+*.nc
+*.duckdb
+*.html
+
+# API credentials
+.cdsapirc
