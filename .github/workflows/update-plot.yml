@@ -6,12 +6,16 @@ on:
   workflow_dispatch:       # manuell triggerbar
 
 permissions:
-  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  update:
+  build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -28,12 +32,19 @@ jobs:
 
       - name: Generate plot
         run: |
-          mkdir -p docs
-          uv run dust-analyzer --lat 52.37 --lon 9.73 --days 14 --out docs/index.html
+          mkdir -p _site
+          uv run dust-analyzer --lat 52.37 --lon 9.73 --days 14 --no-cache --out _site/index.html
 
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
-          commit_message: "chore: update air quality plot ${{ github.run_id }}"
+        id: deployment
+        uses: actions/deploy-pages@v4
