@@ -47,6 +47,16 @@ key: YOUR-API-KEY" > ~/.cdsapirc
 uv sync
 ```
 
+## Installation from Git
+
+```bash
+# As a global CLI tool (recommended)
+uv tool install git+https://github.com/synapticore-io/dust-analyzer.git
+
+# Library only
+pip install "git+https://github.com/synapticore-io/dust-analyzer.git"
+```
+
 ## Usage
 
 ```bash

@@ -1,9 +1,10 @@
 """
-Interaktiver Plotly-Chart: Dust / SO₂ / PM2.5 übereinander.
-Separate Subplots, geteilte X-Achse, Dark Theme, responsive/mobile-ready.
+Interactive Plotly chart: dust / SO₂ / PM2.5 in stacked subplots.
+Shared X axis, dark theme, responsive/mobile-ready.
 """
 
 from pathlib import Path
+import logging
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -16,6 +17,9 @@ SOURCE_URL = "https://ads.atmosphere.copernicus.eu/datasets/cams-europe-air-qual
 SOURCE_LABEL = "CAMS European Air Quality Forecasts (Copernicus / ECMWF)"
 
 
+logger = logging.getLogger(__name__)
+
+
 def _hex_to_rgba(hex_color: str, alpha: float) -> str:
     r = int(hex_color[1:3], 16)
     g = int(hex_color[3:5], 16)
@@ -24,7 +28,7 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
 
 
 def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None:
-    """Schreibt responsiven interaktiven HTML-Chart nach `out`."""
+    """Write responsive interactive HTML chart to `out`."""
     n = len(series)
 
     fig = make_subplots(
@@ -59,7 +63,7 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
             col=1,
         )
 
-        # Y-Achse pro Subplot
+    # Y axis per subplot
         fig.update_yaxes(
             title_text="µg/m³",
             title_font=dict(size=11, color="#888"),
@@ -70,7 +74,7 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
             col=1,
         )
 
-    # X-Achse nur unten
+    # X axis only on bottom subplot
     fig.update_xaxes(
         tickfont=dict(size=11, color="#aaa"),
         gridcolor="rgba(255,255,255,0.05)",
@@ -79,13 +83,25 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
         col=1,
     )
 
-    # Subplot-Titel styling
+    # Subplot title styling
     for annotation in fig["layout"]["annotations"]:
         annotation["font"] = dict(size=13, color="#ccc")
         annotation["xanchor"] = "left"
         annotation["x"] = 0
 
-    # Footer: Datenquelle + Repo
+    # Footer: dataset hint + data source + repo
+    fig.add_annotation(
+        text=(
+            "Modelled surface-level concentrations (level 0, ~10 km grid, 9-model ensemble + EEA station data) · "
+            "No column integrals — dust aloft does not appear here"
+        ),
+        xref="paper", yref="paper",
+        x=0, y=1.02,
+        xanchor="left", yanchor="bottom",
+        showarrow=False,
+        font=dict(size=11, color="#888"),
+    )
+
     fig.add_annotation(
         text=(
             f'Datenquelle: <a href="{SOURCE_URL}" target="_blank" '
@@ -103,7 +119,10 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
 
     fig.update_layout(
         title=dict(
-            text=f"Luftqualität — {loc.city} ({loc.lat:.2f}°N, {loc.lon:.2f}°E) · letzte {days} Tage",
+            text=(
+                f"Air quality · surface level — {loc.city} "
+                f"({loc.lat:.2f}°N, {loc.lon:.2f}°E) · last {days} days"
+            ),
             font=dict(size=16, color="#e0e0e0"),
             x=0,
             xanchor="left",
@@ -118,12 +137,12 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
             font_size=13,
             namelength=-1,
         ),
-        margin=dict(t=70, b=70, l=55, r=20),
+        margin=dict(t=90, b=70, l=55, r=20),
         paper_bgcolor="#0f1117",
         plot_bgcolor="#131720",
     )
 
-    # Responsive config: skaliert auf jedem Bildschirm
+    # Responsive config: scales on any screen
     config = {
         "responsive": True,
         "displayModeBar": True,
@@ -139,9 +158,8 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
     fig.write_html(
         str(out),
         config=config,
-        include_plotlyjs="cdn",  # kleiner Output, lädt von CDN
+        include_plotlyjs="cdn",  # smaller output, loads Plotly from CDN
         full_html=True,
     )
-
-    print(f"\n✅ Chart: {out.resolve()}")
-    print("   Im Browser öffnen für interaktive Ansicht.")
+    logger.info("Chart written to %s", out.resolve())
+    logger.info("Open the output HTML in a browser for the interactive view.")

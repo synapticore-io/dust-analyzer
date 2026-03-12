@@ -1,18 +1,17 @@
 [project]
 name = "dust-analyzer"
 version = "0.1.0"
-description = "Saharastaub vs. Industrieemissionen — CAMS/Copernicus Luftqualitätsanalyse"
+description = "Saharan dust vs. anthropogenic emissions — CAMS/Copernicus air-quality analysis"
 readme = "README.md"
 authors = [
-    { name = "Björn Bethge", email = "bjoern@synapticore.io" }
+    { name = "Björn Bethge", email = "hello@synapticore.io" }
 ]
 requires-python = ">=3.11"
 dependencies = [
     "cdsapi>=0.7.7",
-    "duckdb>=1.4.4",
-    "plotly-express>=0.4.1",
+    "plotly>=5.24.0",
+    "marimo[recommended]>=0.20.4",
     "xarray>=2026.2.0",
-    "requests>=2.32.5",
     "netCDF4>=1.7.0",
 ]
 
@@ -22,3 +21,6 @@ dust-analyzer = "dust_analyzer.__main__:main"
 [build-system]
 requires = ["uv_build>=0.9.26,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.marimo.runtime]
+pythonpath = ["src"]
