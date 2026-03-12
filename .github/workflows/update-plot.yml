@@ -2,7 +2,7 @@ name: Update Air Quality Plot
 
 on:
   schedule:
-    - cron: "0 10 * * *"  # täglich 10:00 UTC (nach CAMS-Update um 08:30 UTC)
+    - cron: "0 14 * * *"  # täglich 14:00 UTC — CAMS analysis data for D-1 available by then
   workflow_dispatch:       # manuell triggerbar
 
 permissions:
@@ -16,6 +16,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
