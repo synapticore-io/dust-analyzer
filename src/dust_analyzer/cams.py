@@ -103,7 +103,7 @@ def download(
         return nc_path
 
     if levels_m is None:
-        levels_m = DEFAULT_LEVELS_METERS
+        levels_m = [0]
 
     if area is None:
         area = [loc.lat + 1, loc.lon - 1, loc.lat - 1, loc.lon + 1]  # N, W, S, E
