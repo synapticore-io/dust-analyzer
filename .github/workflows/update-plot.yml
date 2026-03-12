@@ -2,8 +2,8 @@ name: Update Air Quality Plot
 
 on:
   schedule:
-    - cron: "0 14 * * *"  # täglich 14:00 UTC — CAMS analysis data for D-1 available by then
-  workflow_dispatch:       # manuell triggerbar
+    - cron: "0 14 * * *"  # daily 14:00 UTC — CAMS analysis data for D-1 available by then
+  workflow_dispatch:       # manual trigger
 
 permissions:
   pages: write

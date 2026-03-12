@@ -50,8 +50,8 @@ def parse_args() -> argparse.Namespace:
             "  dust-analyzer --no-cache             # ignore DuckDB cache\n"
         ),
     )
-    parser.add_argument("--lat",      type=float, help="Latitude  (z.B. 52.37)")
-    parser.add_argument("--lon",      type=float, help="Longitude (z.B. 9.73)")
+    parser.add_argument("--lat",      type=float, help="Latitude  (e.g. 52.37)")
+    parser.add_argument("--lon",      type=float, help="Longitude (e.g. 9.73)")
     parser.add_argument("--days", type=int, default=7, help="Time range in days (default: 7)")
     parser.add_argument("--out", type=str, default="dust_analysis.html", help="Output HTML file")
     parser.add_argument("--no-cache", action="store_true", help="Ignore DuckDB cache")

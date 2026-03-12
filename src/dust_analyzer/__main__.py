@@ -70,7 +70,7 @@ def main() -> None:
                 date_to,
             )
 
-    # Chart rendern
+    # Render chart
     from dust_analyzer.plot import render
     render(series, loc, args.days, Path(args.out))
 

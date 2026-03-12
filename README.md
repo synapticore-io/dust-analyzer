@@ -7,17 +7,19 @@ Data source: [CAMS European Air Quality Forecasts](https://ads.atmosphere.copern
 
 👉 **[synapticore-io.github.io/dust-analyzer](https://synapticore-io.github.io/dust-analyzer/)**
 
-Updated daily via GitHub Actions (10:00 UTC), as soon as new CAMS analysis data is available.
+Updated daily via GitHub Actions (14:00 UTC), as soon as new CAMS analysis data is available.
 
 ---
 
 ## What it does
 
-Downloads hourly analysis data (not forecasts) for a configurable time range,
+Downloads hourly analysis data (not forecasts) for all height levels (surface to 5000 m),
 extracts time series for the nearest grid point to the given coordinates,
 and renders an interactive HTML chart.
 
-Time series are cached locally in DuckDB — identical requests skip the API download.
+Time series and volumetric measurements are cached locally in DuckDB — identical requests skip the API download.
+
+An interactive [marimo](https://marimo.io/) notebook (`examples/dust_explorer.py`) provides city selection, height profiles, a 3D dust visualization, and source attribution analysis.
 
 ## Data
 
@@ -27,7 +29,7 @@ Time series are cached locally in DuckDB — identical requests skip the API dow
 | Sulphur dioxide | `sulphur_dioxide` | µg/m³ |
 | Fine particulate matter PM2.5 | `particulate_matter_2.5um` | µg/m³ |
 
-Resolution: 0.1° × 0.1° (~10 km), hourly, rolling archive ~3 years.  
+Resolution: 0.1° × 0.1° (~10 km), hourly, 10 height levels (0–5000 m), rolling archive ~3 years.
 Type: `analysis` (assimilated observational data).
 
 ## Setup
@@ -92,8 +94,8 @@ containing the API key from `~/.cdsapirc`.
 
 - [cdsapi](https://github.com/ecmwf/cdsapi) — ECMWF ADS client
 - [xarray](https://xarray.dev/) + [netCDF4](https://unidata.github.io/netcdf4-python/) — NetCDF processing
-- [duckdb](https://duckdb.org/) — local cache
 - [plotly](https://plotly.com/python/) — interactive chart
+- [marimo](https://marimo.io/) — reactive notebook (brings duckdb, polars, pandas)
 
 ## License
 
