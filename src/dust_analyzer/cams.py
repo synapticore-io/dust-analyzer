@@ -23,7 +23,7 @@ Licence (accept once in the browser):
 
 import re
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
 import logging
 
@@ -74,9 +74,9 @@ def _parse_time_axis(ds: xr.Dataset, date_from: date) -> np.ndarray:
     long_name = ds.time.attrs.get("long_name", "")
     match = re.search(r"(\d{8})", long_name)
     if match:
-        ref = datetime.strptime(match.group(1), "%Y%m%d").replace(tzinfo=timezone.utc)
+        ref = datetime.strptime(match.group(1), "%Y%m%d")
     else:
-        ref = datetime(date_from.year, date_from.month, date_from.day, tzinfo=timezone.utc)
+        ref = datetime(date_from.year, date_from.month, date_from.day)
 
     hours = ds.time.values.astype(float)
     return np.array(
