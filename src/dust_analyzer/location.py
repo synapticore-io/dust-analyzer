@@ -55,6 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--days", type=int, default=7, help="Time range in days (default: 7)")
     parser.add_argument("--out", type=str, default="dust_analysis.html", help="Output HTML file")
     parser.add_argument("--no-cache", action="store_true", help="Ignore DuckDB cache")
+    parser.add_argument("--mcp", action="store_true", help="Start as MCP server (stdio)")
     return parser.parse_args()
 
 
