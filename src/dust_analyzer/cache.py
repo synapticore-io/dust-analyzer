@@ -144,7 +144,7 @@ def put_measurements(
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            [(ts, lat, lon, level_m, var, val, unit, model, request_hash) for ts, lat, lon, level_m, var, val, unit, model in rows],
+            [(_to_py_datetime(ts), lat, lon, level_m, var, val, unit, model, request_hash) for ts, lat, lon, level_m, var, val, unit, model in rows],
         )
 
     con.close()
