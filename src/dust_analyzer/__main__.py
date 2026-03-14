@@ -31,6 +31,11 @@ def _enrich_from_cache(cached: dict) -> dict:
 
 def main() -> None:
     args = parse_args()
+
+    if args.mcp:
+        from dust_analyzer.server import run_server
+        run_server()
+        return
     loc  = resolve_location(args)
 
     date_from, date_to = cams.date_range(args.days)
@@ -51,24 +56,17 @@ def main() -> None:
             logger.error("No data extracted from CAMS download.")
             sys.exit(1)
 
-        cache.put(loc.lat, loc.lon, date_from, date_to, series)
+        if not args.no_cache:
+            cache.put(loc.lat, loc.lon, date_from, date_to, series)
 
-        # Capture volumetric measurements for the notebook use case
-        measurement_rows = cams.extract_measurements(nc_path, date_from)
-        if measurement_rows:
-            area_lat_min = loc.lat - 1
-            area_lat_max = loc.lat + 1
-            area_lon_min = loc.lon - 1
-            area_lon_max = loc.lon + 1
-            cache.put_measurements(
-                measurement_rows,
-                area_lat_min,
-                area_lat_max,
-                area_lon_min,
-                area_lon_max,
-                date_from,
-                date_to,
-            )
+            measurement_rows = cams.extract_measurements(nc_path, date_from)
+            if measurement_rows:
+                cache.put_measurements(
+                    measurement_rows,
+                    loc.lat - 1, loc.lat + 1,
+                    loc.lon - 1, loc.lon + 1,
+                    date_from, date_to,
+                )
 
     # Render chart
     from dust_analyzer.plot import render
