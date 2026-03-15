@@ -1,6 +1,6 @@
 [project]
 name = "dust-analyzer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Saharan dust vs. anthropogenic emissions — CAMS/Copernicus air-quality analysis"
 readme = "README.md"
 authors = [
@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "cdsapi>=0.7.7",
     "plotly>=5.24.0",
-    "marimo[recommended]>=0.20.4",
+    "marimo[recommended,mcp]>=0.20.4",
     "xarray>=2026.2.0",
     "netCDF4>=1.7.0",
 ]

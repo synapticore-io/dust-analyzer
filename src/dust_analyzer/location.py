@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_location(args: argparse.Namespace) -> Location:
-    if args.lat and args.lon:
+    if args.lat is not None and args.lon is not None:
         loc = from_args(args.lat, args.lon)
         logger.info("Using manual location: %s", loc)
         return loc

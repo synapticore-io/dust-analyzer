@@ -97,6 +97,22 @@ containing the API key from `~/.cdsapirc`.
 - [plotly](https://plotly.com/python/) — interactive chart
 - [marimo](https://marimo.io/) — reactive notebook (brings duckdb, polars, pandas)
 
+## Data Attribution
+
+Contains modified Copernicus Atmosphere Monitoring Service information (2026).
+Neither the European Commission nor ECMWF is responsible for any use that may be made of the Copernicus information or data it contains.
+
+**Catalogue citation:**
+Copernicus Atmosphere Monitoring Service (2020): CAMS European air quality forecasts.
+Copernicus Atmosphere Monitoring Service (CAMS) Atmosphere Data Store (ADS).
+DOI: [10.24381/a4005cee](https://doi.org/10.24381/a4005cee)
+
+**ENSEMBLE data:**
+METEO FRANCE, Ineris, Aarhus University, MET Norway, IEK, IEP-NRI, KNMI, TNO, SMHI, FMI, ENEA, BSC (2022):
+CAMS European air quality forecasts, ENSEMBLE data.
+Copernicus Atmosphere Monitoring Service (CAMS) Atmosphere Data Store (ADS).
+[ads.atmosphere.copernicus.eu/datasets/cams-europe-air-quality-forecasts](https://ads.atmosphere.copernicus.eu/datasets/cams-europe-air-quality-forecasts)
+
 ## License
 
 MIT

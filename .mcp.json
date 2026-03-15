@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "dust-analyzer": {
+      "command": "uv",
+      "args": ["run", "dust-analyzer", "--mcp"]
+    }
+  }
+}

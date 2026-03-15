@@ -59,8 +59,16 @@ def date_range(days: int) -> tuple[date, date]:
     return start, end
 
 
-def _nc_path(loc: Location, date_from: date, date_to: date) -> Path:
-    return Path(f"cams_eu_{loc.lat:.2f}_{loc.lon:.2f}_{date_from}_{date_to}.nc")
+def date_range_forecast(days_back: int = 2, days_ahead: int = 3) -> tuple[date, date]:
+    """Date range for forecast data: recent past + future."""
+    start = date.today() - timedelta(days=days_back)
+    end = date.today() + timedelta(days=days_ahead)
+    return start, end
+
+
+def _nc_path(loc: Location, date_from: date, date_to: date, data_type: str = "analysis") -> Path:
+    suffix = "" if data_type == "analysis" else f"_{data_type}"
+    return Path(f"cams_eu_{loc.lat:.2f}_{loc.lon:.2f}_{date_from}_{date_to}{suffix}.nc")
 
 
 def _parse_time_axis(ds: xr.Dataset, date_from: date) -> np.ndarray:
@@ -91,12 +99,16 @@ def download(
     date_to: date,
     levels_m: list[int] | None = None,
     area: list[float] | None = None,
+    data_type: str = "analysis",
 ) -> Path:
     """
-    Download CAMS EU analysis data as NetCDF (no ZIP).
+    Download CAMS EU data as NetCDF (no ZIP).
     Skip download if the .nc file already exists.
+
+    Args:
+        data_type: "analysis" (default, ~48h latency) or "forecast" (near-realtime)
     """
-    nc_path = _nc_path(loc, date_from, date_to)
+    nc_path = _nc_path(loc, date_from, date_to, data_type)
 
     if nc_path.exists():
         logger.info("NetCDF already present: %s", nc_path.name)
@@ -112,16 +124,34 @@ def download(
         "variable":      [v[0] for v in VARIABLES.values()],
         "model":         ["ensemble"],
         "level":         [str(level) for level in levels_m],
-        "date":          [f"{date_from}/{date_to}"],
-        "type":          ["analysis"],
-        "time":          HOURS,
-        "leadtime_hour": ["0"],
-        "area":          area,
+        "type":          [data_type],
         "data_format":   "netcdf",
+        "area":          area,
     }
 
-    logger.info("CAMS Europe download (%s → %s)...", date_from, date_to)
-    logger.info("%d hours × %d days", len(HOURS), (date_to - date_from).days + 1)
+    if data_type == "analysis":
+        # Analysis: date range × all 24 hours × leadtime 0, area-subsetted
+        request["date"] = [f"{date_from}/{date_to}"]
+        request["time"] = HOURS
+        request["leadtime_hour"] = ["0"]
+    else:
+        # Forecast: single init date × 00:00 × leadtime steps
+        # NO area subsetting — not supported for forecast type, costs full Europe otherwise
+        # Use 6h steps to keep request size manageable (3 vars × 17 steps × all Europe)
+        del request["area"]
+        init_date = date.today() - timedelta(days=1)
+        request["date"] = [f"{init_date}/{init_date}"]
+        request["time"] = ["00:00"]
+        request["leadtime_hour"] = [
+            "0", "6", "12", "18", "24", "30", "36", "42",
+            "48", "54", "60", "66", "72", "78", "84", "90", "96",
+        ]
+
+    logger.info("CAMS Europe %s download (%s → %s)...", data_type, date_from, date_to)
+    if data_type == "analysis":
+        logger.info("%d hours × %d days", len(HOURS), (date_to - date_from).days + 1)
+    else:
+        logger.info("Init date: %s, leadtime 0–96h", request["date"][0])
     logger.info("Queue can take 1–5 minutes.")
 
     client = cdsapi.Client()
@@ -148,7 +178,19 @@ def extract(nc_path: Path, loc: Location, date_from: date) -> dict[str, dict]:
     logger.info("Variables in file: %s", list(ds.data_vars))
     logger.info("Dimensions: %s", dict(ds.sizes))
 
+    # Ensure monotonic coordinates for .sel(method="nearest")
+    for dim in ds.dims:
+        if dim in ds.coords:
+            idx = ds.indexes[dim]
+            if not (idx.is_monotonic_increasing or idx.is_monotonic_decreasing):
+                ds = ds.sortby(dim)
+
     timestamps = _parse_time_axis(ds, date_from)
+    sort_idx = np.argsort(timestamps)
+    timestamps = timestamps[sort_idx]
+    _, unique_idx = np.unique(timestamps, return_index=True)
+    timestamps = timestamps[unique_idx]
+
     series: dict[str, dict] = {}
 
     for key, (_, nc_var, label, color) in VARIABLES.items():
@@ -162,14 +204,16 @@ def extract(nc_path: Path, loc: Location, date_from: date) -> dict[str, dict]:
             method="nearest",
         )
 
-        # squeeze level dimension
         non_time = [d for d in da.dims if d != "time"]
         if non_time:
             da = da.isel({d: 0 for d in non_time})
 
+        values = da.values.flatten().astype(float)
+        values = values[sort_idx][unique_idx]
+
         series[key] = {
             "time":   timestamps,
-            "values": da.values.flatten().astype(float),
+            "values": values,
             "label":  label,
             "color":  color,
         }
