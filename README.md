@@ -1,5 +1,7 @@
 # dust-analyzer
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/N4N71WOHZ3)
+
 Analyzes **Saharan dust, SO₂ and PM2.5** for any European location.  
 Data source: [CAMS European Air Quality Forecasts](https://ads.atmosphere.copernicus.eu/datasets/cams-europe-air-quality-forecasts) (Copernicus / ECMWF).
 
