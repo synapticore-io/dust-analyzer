@@ -12,10 +12,13 @@ wheels/
 # IDE
 .idea/
 
-# Local data — nicht ins Repo
+# Local data & outputs — nicht ins Repo
+data/
+output/
 *.nc
 *.duckdb
 *.html
+!src/dust_analyzer/mcp_ui/*.html
 
 # API credentials
 .cdsapirc

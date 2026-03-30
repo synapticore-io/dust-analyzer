@@ -9,18 +9,21 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "cdsapi>=0.7.7",
+    "duckdb>=1.0.0",
+    "mcp>=1.26.0",
+    "numpy>=1.26.0",
     "plotly>=5.24.0",
-    "marimo[recommended,mcp]>=0.20.4",
-    "xarray>=2026.2.0",
+    "xarray>=2024.10.0",
     "netCDF4>=1.7.0",
+    "polars>=1.39.3",
 ]
 
 [project.scripts]
 dust-analyzer = "dust_analyzer.__main__:main"
 
+[tool.uv]
+link-mode = "copy"
+
 [build-system]
 requires = ["uv_build>=0.9.26,<0.10.0"]
 build-backend = "uv_build"
-
-[tool.marimo.runtime]
-pythonpath = ["src"]

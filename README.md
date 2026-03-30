@@ -1,7 +1,5 @@
 # dust-analyzer
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/N4N71WOHZ3)
-
 Analyzes **Saharan dust, SO₂ and PM2.5** for any European location.  
 Data source: [CAMS European Air Quality Forecasts](https://ads.atmosphere.copernicus.eu/datasets/cams-europe-air-quality-forecasts) (Copernicus / ECMWF).
 
@@ -19,9 +17,7 @@ Downloads hourly analysis data (not forecasts) for all height levels (surface to
 extracts time series for the nearest grid point to the given coordinates,
 and renders an interactive HTML chart.
 
-Time series and volumetric measurements are cached locally in DuckDB — identical requests skip the API download.
-
-An interactive [marimo](https://marimo.io/) notebook (`examples/dust_explorer.py`) provides city selection, height profiles, a 3D dust visualization, and source attribution analysis.
+Time series are cached as Parquet under `data/` (plus a small DuckDB file for UBA station overlays) — identical requests skip the API download. NetCDF downloads also go to `data/`. HTML plots default to `output/dust_analysis.html`.
 
 ## Data
 
@@ -51,6 +47,8 @@ key: YOUR-API-KEY" > ~/.cdsapirc
 uv sync
 ```
 
+If **`uv`** warns about a missing **`RECORD`** file or the env looks broken: delete **`.venv`**, then **`uv sync`** again ([uv project env](https://docs.astral.sh/uv/concepts/projects/layout/#the-project-environment)).
+
 ## Installation from Git
 
 ```bash
@@ -76,9 +74,18 @@ dust-analyzer --days 14
 # Skip cache
 dust-analyzer --no-cache
 
-# Custom output file
-dust-analyzer --out my_analysis.html
+# Custom output file (any path; parent dirs are created)
+dust-analyzer --out output/my_analysis.html
 ```
+
+### MCP server (Cursor / Claude Desktop)
+
+Stdio: **`python -m dust_analyzer --mcp`**.
+
+1. **`uv run`** (recommended): [`uv run --directory <repo> python -m dust_analyzer --mcp`](https://docs.astral.sh/uv/concepts/projects/run/) — updates the project env before running. **Do not** add **`--no-sync`** ([skips syncing `.venv`](https://docs.astral.sh/uv/reference/cli/#uv-run)).
+2. **`.venv\Scripts\python.exe`** + **`cwd`** = repo after `uv sync`, or **`scripts/run_mcp.ps1`** — same module, no `uv` each launch.
+
+**Not** **`uvx`**: that is [`uv tool run`](https://docs.astral.sh/uv/reference/cli/#uv-tool-run) (PyPI tools), not the [project `uv run`](https://docs.astral.sh/uv/concepts/projects/run/) workflow.
 
 ## Interpretation
 
@@ -95,9 +102,11 @@ containing the API key from `~/.cdsapirc`.
 ## Dependencies
 
 - [cdsapi](https://github.com/ecmwf/cdsapi) — ECMWF ADS client
+- [duckdb](https://duckdb.org/) — local cache
+- [mcp](https://github.com/modelcontextprotocol/python-sdk) — MCP server (`--mcp`)
+- [Polars](https://pola.rs/) — Parquet I/O and columnar transforms
 - [xarray](https://xarray.dev/) + [netCDF4](https://unidata.github.io/netcdf4-python/) — NetCDF processing
 - [plotly](https://plotly.com/python/) — interactive chart
-- [marimo](https://marimo.io/) — reactive notebook (brings duckdb, polars, pandas)
 
 ## Data Attribution
 

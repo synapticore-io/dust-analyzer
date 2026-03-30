@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Luftqualität Zeitreihe</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Segoe UI, sans-serif; background: #0f131a; color: #e7edf5; padding: 16px; }
+    #plot { height: 68vh; width: 100%; }
+    #meta { padding: 8px 0; font-size: 12px; color: #9db0c5; }
+    .error { color: #e05252; padding: 20px; }
+  </style>
+</head>
+<body>
+  <div id="meta">Warte auf Tool-Daten…</div>
+  <div id="plot"></div>
+  <div id="error" class="error" style="display:none"></div>
+  <!--
+    MCP Apps (ext-apps): Host sends tool results via ui/notifications/tool-result.
+    Per spec, ontoolresult receives CallToolResult-shaped params:
+    - structuredContent: JSON object for the UI (chart data)
+    - content: human-readable text for the model (not JSON)
+    - isError: boolean
+    Do not parse content[0].text as JSON.
+  -->
+  <script type="module">
+    import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@1.3.2/app-with-deps";
+
+    const app = new App({ name: "Dust Analyzer Timeseries", version: "1.0.0" });
+    const metaEl = document.getElementById("meta");
+    const errEl = document.getElementById("error");
+
+    function renderStructured(data) {
+      errEl.style.display = "none";
+      try {
+        if (!data || typeof data !== "object") {
+          errEl.style.display = "block";
+          errEl.textContent = "Keine structuredContent vom Tool.";
+          return;
+        }
+        if (data.error) {
+          errEl.style.display = "block";
+          errEl.textContent = String(data.error);
+          return;
+        }
+        const series = data.series || {};
+        if (!Object.keys(series).length) {
+          errEl.style.display = "block";
+          errEl.textContent = "Keine Zeitreihendaten in structuredContent.";
+          return;
+        }
+        const traces = Object.values(series).map((s) => ({
+          x: s.time,
+          y: s.values,
+          mode: "lines",
+          name: s.label,
+          line: { color: s.color || undefined },
+        }));
+        metaEl.textContent = `${data.city || ""} ${data.date_from || ""} – ${data.date_to || ""}`.trim();
+        Plotly.newPlot("plot", traces, {
+          template: "plotly_dark",
+          paper_bgcolor: "#0f131a",
+          plot_bgcolor: "#0f131a",
+          margin: { t: 30, r: 18, l: 44, b: 40 },
+          title: "Luftqualität Zeitreihe",
+        }, { responsive: true });
+      } catch (e) {
+        errEl.style.display = "block";
+        errEl.textContent = "Fehler: " + e.message;
+      }
+    }
+
+    app.ontoolresult = (params) => {
+      if (params.isError) {
+        errEl.style.display = "block";
+        const sc = params.structuredContent;
+        const msg =
+          (sc && typeof sc === "object" && sc.error != null && String(sc.error)) ||
+          params.content?.find((c) => c.type === "text")?.text ||
+          "Tool-Fehler";
+        errEl.textContent = String(msg);
+        return;
+      }
+      renderStructured(params.structuredContent);
+    };
+
+    try {
+      await app.connect();
+    } catch (e) {
+      errEl.style.display = "block";
+      errEl.textContent = "ui/initialize fehlgeschlagen: " + (e && e.message ? e.message : String(e));
+      metaEl.textContent = "";
+      console.error(e);
+    }
+  </script>
+</body>
+</html>

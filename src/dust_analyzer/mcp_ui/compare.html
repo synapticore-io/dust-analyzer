@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Städtevergleich</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Segoe UI, sans-serif; background: #0f131a; color: #e7edf5; padding: 16px; }
+    #plot { height: 70vh; width: 100%; }
+    .error { color: #e05252; padding: 20px; }
+  </style>
+</head>
+<body>
+  <div id="plot"></div>
+  <div id="error" class="error" style="display:none"></div>
+  <script type="module">
+    import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@1.3.2/app-with-deps";
+
+    const app = new App({ name: "Dust Analyzer Compare", version: "1.0.0" });
+    const errEl = document.getElementById("error");
+
+    function renderStructured(data) {
+      errEl.style.display = "none";
+      try {
+        if (!data || typeof data !== "object") {
+          errEl.style.display = "block";
+          errEl.textContent = "Keine structuredContent vom Tool.";
+          return;
+        }
+        if (data.error) {
+          errEl.style.display = "block";
+          errEl.textContent = String(data.error);
+          return;
+        }
+
+        const cities = data.cities || [];
+        if (!cities.length) {
+          errEl.style.display = "block";
+          errEl.textContent = "Keine Vergleichsdaten in structuredContent.";
+          return;
+        }
+
+        const traces = cities.map((c) => ({
+          x: c.time,
+          y: c.values,
+          mode: "lines",
+          name: c.city,
+        }));
+
+        Plotly.newPlot("plot", traces, {
+          template: "plotly_dark",
+          paper_bgcolor: "#0f131a",
+          plot_bgcolor: "#0f131a",
+          margin: { t: 30, r: 16, l: 44, b: 40 },
+          title: `${data.variable_label || data.variable || "Variable"} Städtevergleich`,
+        }, { responsive: true });
+      } catch (e) {
+        errEl.style.display = "block";
+        errEl.textContent = "Fehler: " + e.message;
+      }
+    }
+
+    app.ontoolresult = (params) => {
+      if (params.isError) {
+        errEl.style.display = "block";
+        const sc = params.structuredContent;
+        errEl.textContent =
+          (sc && typeof sc === "object" && sc.error != null && String(sc.error)) ||
+          params.content?.find((c) => c.type === "text")?.text ||
+          "Tool-Fehler";
+        return;
+      }
+      renderStructured(params.structuredContent);
+    };
+
+    try {
+      await app.connect();
+    } catch (e) {
+      errEl.style.display = "block";
+      errEl.textContent = "ui/initialize fehlgeschlagen: " + (e && e.message ? e.message : String(e));
+      console.error(e);
+    }
+  </script>
+</body>
+</html>

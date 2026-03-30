@@ -1,7 +1,7 @@
 """
 UBA (Umweltbundesamt) Air Data API v3 — real-time station measurements.
 
-Base URL: https://umweltbundesamt.api.proxy.bund.de/api/air_data/v3
+Base URL: https://www.umweltbundesamt.de/api/air_data/v3
 Auth:     None required (public API)
 Rate:     ~100 requests/minute
 
@@ -18,7 +18,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://umweltbundesamt.api.proxy.bund.de/api/air_data/v3"
+BASE_URL = "https://www.umweltbundesamt.de/api/air_data/v3"
 REQUEST_TIMEOUT = 30
 
 # UBA component IDs → (variable_key, label, color)

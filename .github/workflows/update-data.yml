@@ -1,0 +1,86 @@
+name: Update Air Quality Data
+
+on:
+  schedule:
+    - cron: "30 13 * * *"  # 13:30 UTC — before update-plot (14:00)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-update
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Write CAMS API credentials
+        run: |
+          echo "url: https://ads.atmosphere.copernicus.eu/api" > ~/.cdsapirc
+          echo "key: ${{ secrets.CAMS_API_KEY }}" >> ~/.cdsapirc
+
+      - name: Fetch CAMS data (Europe-wide, analysis + forecast)
+        run: |
+          uv run python -c "
+          from datetime import date
+          from dust_analyzer import cams
+          from dust_analyzer.location import Location
+          from dust_analyzer.paths import DATA_DIR, ensure_data_dir
+          import shutil
+
+          ensure_data_dir()
+
+          # Central Europe bbox: covers Germany, Austria, CH, NL, BE, CZ, PL, DK, FR-NE
+          # N=56, W=2, S=44, E=18
+          area = [56, 2, 44, 18]
+          loc = Location(lat=50.0, lon=10.0, city='Europe-Central')
+
+          # Analysis: last 14 days
+          d_from, d_to = cams.date_range(14)
+          print(f'Analysis: {d_from} -> {d_to}, area={area}')
+          p_analysis = cams.download(loc, d_from, d_to, data_type='analysis', area=area)
+          # Rename to fixed name
+          out_analysis = DATA_DIR / 'analysis.parquet'
+          shutil.move(str(p_analysis), str(out_analysis))
+          print(f'  -> {out_analysis} ({out_analysis.stat().st_size / 1e6:.1f} MB)')
+
+          # Forecast: -2d to +3d
+          fc_from, fc_to = cams.date_range_forecast(days_back=2, days_ahead=3)
+          print(f'Forecast: {fc_from} -> {fc_to}, area={area}')
+          p_forecast = cams.download(loc, fc_from, fc_to, data_type='forecast', area=area)
+          out_forecast = DATA_DIR / 'forecast.parquet'
+          shutil.move(str(p_forecast), str(out_forecast))
+          print(f'  -> {out_forecast} ({out_forecast.stat().st_size / 1e6:.1f} MB)')
+
+          print('Done.')
+          "
+
+      - name: List generated files
+        run: ls -lh data/*.parquet
+
+      - name: Upload to rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="data-latest"
+          DATE=$(date -u +%Y-%m-%d)
+
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" \
+            --title "CAMS Data $DATE" \
+            --notes "Daily CAMS Parquet (Central Europe 44-56°N, 2-18°E). Analysis 14d + Forecast 5d." \
+            --latest=false \
+            data/analysis.parquet \
+            data/forecast.parquet

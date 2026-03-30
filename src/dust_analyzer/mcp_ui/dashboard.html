@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dust Analyzer Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-3.4.0.min.js"></script>
+  <style>
+    body { margin: 0; background: #0f1117; color: #e0e0e0; font-family: system-ui, sans-serif; }
+    .tabs { display: flex; gap: 8px; padding: 10px; border-bottom: 1px solid #232734; }
+    .tab { padding: 6px 10px; border: 1px solid #3b4154; border-radius: 8px; cursor: pointer; }
+    .tab.active { background: #27304a; }
+    #meta { padding: 6px 10px; font-size: 12px; color: #aab2c8; }
+    #plot { width: 100vw; height: calc(100vh - 88px); }
+  </style>
+</head>
+<body>
+  <div class="tabs">
+    <div class="tab active" data-tab="timeseries">Zeitreihe</div>
+    <div class="tab" data-tab="map">Karte</div>
+    <div class="tab" data-tab="compare">Vergleich</div>
+  </div>
+  <div id="meta">Warte auf Tool-Ergebnis ...</div>
+  <div id="plot"></div>
+  <script>
+    let state = { timeseries: null, map: null, compare: null };
+    let active = "timeseries";
+    const meta = document.getElementById("meta");
+    const tabs = [...document.querySelectorAll(".tab")];
+    /** MCP UI: use tool structuredContent only; content[].text is the model summary, not chart JSON. */
+    function dataFromMessage(msg) {
+      if (!msg || typeof msg !== "object") return null;
+      if (msg.jsonrpc === "2.0" && msg.method === "ui/notifications/tool-result" && msg.params) {
+        const sc = msg.params.structuredContent;
+        return sc && typeof sc === "object" ? sc : null;
+      }
+      if (msg.type === "tool_result") {
+        const sc = msg.data?.structuredContent ?? msg.structuredContent;
+        return sc && typeof sc === "object" ? sc : null;
+      }
+      if (msg.structuredContent && typeof msg.structuredContent === "object") return msg.structuredContent;
+      if (msg.data?.structuredContent && typeof msg.data.structuredContent === "object") {
+        return msg.data.structuredContent;
+      }
+      return null;
+    }
+    function selectTab(tab) {
+      active = tab;
+      tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
+      render();
+    }
+    tabs.forEach((t) => t.addEventListener("click", () => selectTab(t.dataset.tab)));
+    function renderTimeseries(d) {
+      const traces = Object.keys(d.series || {}).map((k) => ({ x: d.series[k].time, y: d.series[k].values, type: "scatter", mode: "lines", name: d.series[k].label }));
+      Object.keys(d.station_series || {}).forEach((k) => traces.push({ x: d.station_series[k].time, y: d.station_series[k].values, type: "scatter", mode: "lines+markers", name: `${d.station_series[k].label} (UBA)`, line: { dash: "dot" } }));
+      meta.textContent = `${d.city || ""} · ${d.date_from || ""} bis ${d.date_to || ""}`;
+      Plotly.newPlot("plot", traces, { title: "Zeitreihe", template: "plotly_dark", hovermode: "x unified" }, { responsive: true, displaylogo: false });
+    }
+    function renderMap(d) {
+      const vars = d.variables || {};
+      const key = Object.keys(vars)[0];
+      if (!key) return;
+      const v = vars[key];
+      meta.textContent = `${v.label} · ${d.timestamp || ""}`;
+      Plotly.newPlot("plot", [{ type: "scattermap", lat: v.lats, lon: v.lons, mode: "markers", marker: { size: 8, color: v.values, colorscale: v.colorscale || "YlOrRd", showscale: true } }], { title: "Karte", template: "plotly_dark" }, { responsive: true, displaylogo: false });
+    }
+    function renderCompare(d) {
+      const traces = (d.cities || []).map((c) => ({ x: c.time, y: c.values, type: "scatter", mode: "lines", name: c.city }));
+      meta.textContent = `${d.variable_label || ""} · ${d.date_from || ""} bis ${d.date_to || ""}`;
+      Plotly.newPlot("plot", traces, { title: "Städtevergleich", template: "plotly_dark", hovermode: "x unified" }, { responsive: true, displaylogo: false });
+    }
+    function render() {
+      const d = state[active];
+      if (!d) {
+        meta.textContent = `Keine Daten fuer Tab: ${active}`;
+        Plotly.purge("plot");
+        return;
+      }
+      if (active === "timeseries") renderTimeseries(d);
+      else if (active === "map") renderMap(d);
+      else if (active === "compare") renderCompare(d);
+    }
+    window.addEventListener("message", (event) => {
+      const raw = event.data;
+      if (raw?.type && raw.type !== "tool_result" && raw?.method !== "ui/notifications/tool-result") return;
+      const d = dataFromMessage(raw);
+      if (!d || d.error) return;
+      if (d.series) { state.timeseries = d; active = "timeseries"; }
+      else if (d.variables) { state.map = d; active = "map"; }
+      else if (d.cities) { state.compare = d; active = "compare"; }
+      selectTab(active);
+    });
+  </script>
+</body>
+</html>

@@ -27,19 +27,23 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 
-def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None:
+def render(series: dict[str, dict], loc: Location, days: int, out: Path,
+           station: dict | None = None, mode: str = "auto") -> None:
     """Write responsive interactive HTML chart to `out`."""
-    n = len(series)
+    keys = list(series.keys())
+    n = len(keys)
+    has_station = station is not None and station.get("series")
 
     fig = make_subplots(
         rows=n,
         cols=1,
         shared_xaxes=True,
-        subplot_titles=[data["label"] for data in series.values()],
+        subplot_titles=[series[k]["label"] for k in keys],
         vertical_spacing=0.06,
     )
 
-    for idx, (key, data) in enumerate(series.items(), start=1):
+    for idx, key in enumerate(keys, start=1):
+        data = series[key]
         color      = data["color"]
         fill_color = _hex_to_rgba(color, 0.12)
         line_color = _hex_to_rgba(color, 0.9)
@@ -48,7 +52,7 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
             go.Scatter(
                 x=data["time"],
                 y=data["values"],
-                name=data["label"],
+                name=data["label"] + " (CAMS)",
                 mode="lines",
                 line=dict(color=line_color, width=2),
                 fill="tozeroy",
@@ -56,12 +60,33 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
                 hovertemplate=(
                     "<b>%{x|%d.%m. %H:%M}</b><br>"
                     "%{y:.2f} µg/m³"
-                    "<extra>" + data["label"] + "</extra>"
+                    "<extra>" + data["label"] + " (CAMS)</extra>"
                 ),
             ),
             row=idx,
             col=1,
         )
+
+        # UBA station overlay (dashed line on same subplot)
+        if has_station and key in station["series"]:
+            st_data = station["series"][key]
+            fig.add_trace(
+                go.Scatter(
+                    x=st_data["time"],
+                    y=st_data["values"],
+                    name=st_data["label"] + " (UBA)",
+                    mode="lines+markers",
+                    line=dict(color=_hex_to_rgba(color, 0.7), width=1.5, dash="dot"),
+                    marker=dict(size=3, color=_hex_to_rgba(color, 0.5)),
+                    hovertemplate=(
+                        "<b>%{x|%d.%m. %H:%M}</b><br>"
+                        "%{y:.2f} µg/m³"
+                        "<extra>" + st_data["label"] + " (UBA)</extra>"
+                    ),
+                ),
+                row=idx,
+                col=1,
+            )
 
     # Y axis per subplot
         fig.update_yaxes(
@@ -117,11 +142,12 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
         font=dict(size=11, color="#666"),
     )
 
+    mode_label = "" if mode == "auto" else f" ({mode})"
     fig.update_layout(
         title=dict(
             text=(
                 f"Air quality · surface level — {loc.city} "
-                f"({loc.lat:.2f}°N, {loc.lon:.2f}°E) · last {days} days"
+                f"({loc.lat:.2f}°N, {loc.lon:.2f}°E) · last {days} days{mode_label}"
             ),
             font=dict(size=16, color="#e0e0e0"),
             x=0,
@@ -130,7 +156,7 @@ def render(series: dict[str, dict], loc: Location, days: int, out: Path) -> None
         autosize=True,
         height=260 * n + 60,
         template="plotly_dark",
-        showlegend=False,
+        showlegend=has_station,
         hovermode="x unified",
         hoverlabel=dict(
             bgcolor="#1e2a3a",
