@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-CLI tool + MCP server that downloads CAMS European Air Quality data (Copernicus/ECMWF) and UBA station measurements for any European location, rendering interactive Plotly charts showing Saharan dust, SO₂, and PM2.5 time series. Live instance at [synapticore-io.github.io/dust-analyzer](https://synapticore-io.github.io/dust-analyzer/).
+CLI tool + MCP server for European air quality analysis (Saharan dust, SO₂, PM2.5) using CAMS/Copernicus data. MCP tools render interactive Plotly charts as MCP Apps in Claude Desktop. Live plot at [synapticore-io.github.io/dust-analyzer](https://synapticore-io.github.io/dust-analyzer/).
 
 ## Commands
 
@@ -12,11 +12,9 @@ CLI tool + MCP server that downloads CAMS European Air Quality data (Copernicus/
 uv sync                                          # Install dependencies
 uv run dust-analyzer                              # Run with IP geolocation
 uv run dust-analyzer --lat 52.37 --lon 9.73       # Manual coordinates
-uv run dust-analyzer --days 14 --no-cache         # 14 days, skip cache
+uv run dust-analyzer --days 14                    # 14 days
 uv run dust-analyzer --mcp                        # Start as MCP server (stdio)
 ```
-
-**MCP (Cursor):** Use **`uv run --directory <repo> python -m dust_analyzer --mcp`** (or `uv run` from repo root) — [uv project run](https://docs.astral.sh/uv/concepts/projects/run/). Do not use **`uv run --no-sync`** (skips env sync). **`uvx`** is for PyPI tools, not this workflow.
 
 No test suite exists. No linter configured.
 
@@ -25,73 +23,70 @@ No test suite exists. No linter configured.
 ```
 src/dust_analyzer/
 ├── __init__.py   # Public library API
-├── __main__.py   # CLI entry point, orchestrates: location → cache → download → extract → render
-├── paths.py      # data/ (NetCDF + DuckDB) and output/ (HTML) — relative to cwd
-├── location.py   # Location dataclass + IP geolocation (ipapi.co) + argparse
-├── cams.py       # CAMS API download (cdsapi) — analysis + forecast mode — NetCDF extraction (xarray)
-├── cache.py      # DuckDB cache — timeseries + measurements + station_measurements tables
-├── uba.py        # UBA Umweltbundesamt REST API — real-time station data (no auth), nearest-station lookup
-├── plot.py       # Plotly subplots (dark theme, responsive) → standalone HTML (CLI mode)
-├── mcp_ui/       # MCP App views: `*.html` (`text/html;profile=mcp-app`), loaded by `load_mcp_html()`
-└── server.py     # MCP server — tools + `resources/read` for `ui://…` (HTML from `mcp_ui/`)
+├── __main__.py   # CLI entry point
+├── paths.py      # data/ and output/ directories
+├── location.py   # Location dataclass + IP geolocation (ipapi.co)
+├── remote.py     # DuckDB httpfs — reads Parquet from GitHub Release (no local download)
+├── cams.py       # CAMS API download + NetCDF → Parquet conversion (CI only)
+├── cache.py      # UBA station data in DuckDB (station_measurements table)
+├── uba.py        # UBA Umweltbundesamt REST API — nearest-station lookup, hourly data
+├── plot.py       # CLI Plotly subplots → standalone HTML
+├── mcp_ui/       # MCP App HTML views (text/html;profile=mcp-app)
+└── server.py     # MCP server — tools, resources, prompts
 ```
 
-**Data flow (MCP):** `analyze_air_quality()` → `_fetch_cams(analysis)` → `_stitch_analysis_forecast(forecast)` → `_fetch_station_overlay(uba)` → JSON → MCP App HTML
+**Data flow (MCP):** Tool → `remote.get_timeseries()` (DuckDB httpfs from GitHub Release) → `CallToolResult.structuredContent` → MCP App HTML
 
-**Data flow (CLI):** `parse_args()` → `resolve_location()` → `cache.get()` → if miss: `cams.download()` → `cams.extract()` → `cache.put()` → `plot.render()`
+**Data flow (CLI):** `parse_args()` → `resolve_location()` → `remote` or `cams.download()` → `plot.render()`
 
-## MCP Tools (4 tools, focused)
+**Data flow (CI):** `cams.download()` → NetCDF → Parquet → GitHub Release `data-latest`
 
-| Tool | Wann nutzen | UI |
-|------|-------------|-----|
-| `analyze_air_quality` | Einzelstandort — Zeitreihe aller 3 Schadstoffe mit UBA-Overlay + Forecast-Stitching | Plotly subplots |
-| `show_air_quality_map` | Räumliche Verteilung — Heatmap auf OSM ±5° um Standort, Dropdown für Variable | Plotly Densitymapbox + OpenStreetMap |
-| `compare_cities` | Mehrere Städte (max 5) — eine Variable auf gemeinsamer Zeitachse | Plotly multi-trace |
-| `query_measurements` | Cache-Abfrage — kein API-Call, setzt vorherigen Download voraus | JSON table |
+## MCP Tools
 
-All tools compute date ranges automatically from today's date. No manual dates needed.
+| Tool | Purpose | UI |
+|------|---------|-----|
+| `analyze_air_quality` | Time series: all 3 pollutants, auto analysis+forecast stitching, UBA overlay | Plotly line chart |
+| `show_air_quality_map` | Spatial distribution ±5°, returns metadata; UI loads full data per variable via `get_map_variable` | Plotly scattergeo |
+| `get_map_variable` | App-only tool (`visibility: ["app"]`): returns full grid data for one variable | Called by map UI |
+| `compare_cities` | Multi-city comparison (max 5) on shared time axis | Plotly multi-trace |
+| `query_measurements` | Query remote Parquet archive via DuckDB httpfs | JSON table |
 
-Station lookup, forecast stitching, and data availability diagnostics are internal — not exposed as separate tools.
+Tools return `CallToolResult`: `content` = short text summary (for model context), `structuredContent` = full data (for UI only, not added to model context).
 
-## MCP Prompts (3 Einstiegspunkte)
+## MCP Prompts
 
-| Prompt | Beschreibung |
-|--------|-------------|
-| `luftqualitaet` | Einzelstandort analysieren (Stadt oder Koordinaten) |
-| `staedtevergleich` | PM2.5 mehrerer Städte vergleichen |
-| `saharastaub_lage` | Aktuelle Saharastaub-Situation mit Karte + Zeitreihe |
+| Prompt | Description |
+|--------|------------|
+| `luftqualitaet` | Analyze single location (city or coordinates) |
+| `staedtevergleich` | Compare PM2.5 across cities |
+| `saharastaub_lage` | Current Saharan dust situation with map + time series |
 
 ## Key internals
 
-**CAMS variable mapping** (`cams.VARIABLES`): Each entry is `(request_name, netcdf_name, label, color)`. Request names differ from NetCDF variable names (e.g., `sulphur_dioxide` → `so2_conc`).
+**Remote data** (`remote.py`): DuckDB httpfs reads `analysis.parquet` and `forecast.parquet` directly from `https://github.com/synapticore-io/dust-analyzer/releases/download/data-latest/`. No local CAMS download needed.
 
-**Data modes:**
-- `analysis` — validated, ~48h latency, same dataset with `type: ["analysis"]`
-- `forecast` — near-realtime, same dataset with `type: ["forecast"]`, leadtimes 0-96h
-- `auto` — stitches analysis + forecast at boundary, recommended default
+**CAMS variable mapping** (`cams.VARIABLES`): `(request_name, netcdf_name, label, color)`. Request names differ from NetCDF names (e.g., `sulphur_dioxide` → `so2_conc`).
 
-**UBA API** (`uba.py`): Public REST API, no auth required. Automatic nearest-station matching via Haversine. Components: PM2.5, PM10, SO₂, NO₂, O₃.
+**Data modes:** `analysis` (validated, ~48h latency), `forecast` (near-realtime, leadtimes 0-96h), `auto` (stitches both).
 
-**Cache key format**: `"{lat:.2f}_{lon:.2f}_{date_from}_{date_to}_{data_type}"` — includes data_type to separate analysis/forecast.
+**UBA API** (`uba.py`): Public REST API, no auth. Nearest-station via Haversine.
 
-**Local cache**: CAMS as Parquet under `data/cams_*.parquet`; UBA station rows in DuckDB table `station_measurements` (`dust_cache.duckdb`).
+**MCP Apps protocol** (SEP-1865): Resources with `text/html;profile=mcp-app`, tool meta `{"ui": {"resourceUri": "ui://..."}}`, CSP via `_meta.ui.csp`. App-only tools use `visibility: ["app"]`.
 
 ## External dependencies
 
-- **CAMS API credentials** required in `~/.cdsapirc` (url + key). Covers both analysis and forecast data (same dataset). Dataset licence must be accepted once in browser.
-- **UBA API** — no credentials required, public API.
-- **GitHub Actions** (`.github/workflows/update-plot.yml`): daily at 14:00 UTC, deploys to GitHub Pages. Requires `CAMS_API_KEY` repository secret.
+- **CAMS API credentials** — only needed for CI (`update-data.yml`). MCP/CLI reads from GitHub Release.
+- **UBA API** — no credentials, public.
+- **GitHub Actions**: `update-data.yml` (13:30 UTC, uploads Parquet), `update-plot.yml` (14:00 UTC, deploys Pages). Both need `CAMS_API_KEY` secret.
 
-## Library usage (don’t guess)
+## Library usage
 
-- **xarray:** Use **`Dataset.sizes`** / **`DataArray.sizes`** for iterating dimensions and **`in da.sizes`** checks — aligned with current [xarray API](https://docs.xarray.dev/en/stable/generated/xarray.Dataset.sizes.html).
-- **MCP:** `from mcp.server.fastmcp import FastMCP` — [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) (`mcp` on PyPI). Run the project with **`uv run`**, not **`uv tool run` / `uvx`**.
+- **DuckDB:** `INSTALL httpfs; LOAD httpfs;` then `read_parquet('https://...')` for remote reads.
+- **MCP:** `from mcp.server.fastmcp import FastMCP`, `from mcp.types import CallToolResult, TextContent`.
+- **Polars:** Used in `cams.py` for Parquet I/O. Not used in `server.py` or `remote.py`.
 
 ## Conventions
 
-- German UI strings (print messages, chart labels, hover templates)
-- **Paths:** NetCDF + `dust_cache.duckdb` under `data/`; CLI HTML under `output/` (default `output/dust_analysis.html`). CI may pass `--out _site/index.html` for Pages.
-- `data/`, `output/`, and loose `*.nc` / `*.duckdb` / `*.html` are gitignored — generated locally or in CI
-- Python 3.11, uv as package manager, `uv_build` backend
-- All imports at module top level
-- WHO thresholds rendered as reference lines in charts (PM2.5: 15, SO₂: 40 µg/m³)
+- German UI strings (chart labels, hover templates, error messages)
+- `data/`, `output/`, `*.nc`, `*.duckdb`, `*.html` are gitignored (except `mcp_ui/*.html`)
+- Python 3.11, uv, `uv_build` backend

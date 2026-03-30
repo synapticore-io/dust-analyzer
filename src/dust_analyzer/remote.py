@@ -98,7 +98,7 @@ def get_map_data(
     lat: float,
     lon: float,
     radius_deg: float = 5.0,
-    max_grid: int = 40,
+    max_grid: int = 30,
 ) -> dict[str, dict]:
     """Read spatial grid from remote Parquet for map display."""
     url = ANALYSIS_URL
@@ -137,9 +137,17 @@ def get_map_data(
 
     variables: dict[str, dict] = {}
     for var, records in by_var.items():
-        # Subsample if grid too dense
-        step = max(1, len(records) // (max_grid * max_grid))
-        sampled = records[::step]
+        records.sort(key=lambda r: (r[0], r[1]))
+        # Subsample to ~1000 points: take every Nth lat and lon
+        unique_lats = sorted(set(r[0] for r in records))
+        unique_lons = sorted(set(r[1] for r in records))
+        target = max_grid
+        lat_step = max(1, len(unique_lats) // target)
+        lon_step = max(1, len(unique_lons) // target)
+        keep_lats = set(unique_lats[::lat_step])
+        keep_lons = set(unique_lons[::lon_step])
+        sampled = [r for r in records if r[0] in keep_lats and r[1] in keep_lons]
+
         _, _, label, _ = cams.VARIABLES[var]
         variables[var] = {
             "label": label,

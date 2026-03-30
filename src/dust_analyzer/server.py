@@ -62,24 +62,44 @@ COMPARE_URI    = "ui://dust-analyzer/compare.html"
 _UI_CSP = {
     "resourceDomains": [
         "https://cdn.plot.ly",
-        "https://cdn.jsdelivr.net",
         "https://unpkg.com",
-    ]
+    ],
+    "connectDomains": [
+        "https://cdn.plot.ly",
+    ],
 }
-_RESOURCE_META = {"csp": _UI_CSP}
+_UI_META = {"ui": {"csp": _UI_CSP, "prefersBorder": True}}
 
 
-@mcp.resource(TIMESERIES_URI, mime_type="text/html;profile=mcp-app", meta=_RESOURCE_META)
+@mcp.resource(
+    TIMESERIES_URI,
+    name="Zeitreihen-Dashboard",
+    description="Plotly-Dashboard: Saharastaub, SO2, PM2.5 Zeitreihen mit UBA-Overlay",
+    mime_type="text/html;profile=mcp-app",
+    meta=_UI_META,
+)
 def timeseries_resource() -> str:
     return load_mcp_html("timeseries.html")
 
 
-@mcp.resource(MAP_URI, mime_type="text/html;profile=mcp-app", meta=_RESOURCE_META)
+@mcp.resource(
+    MAP_URI,
+    name="Luftqualitaets-Karte",
+    description="Plotly Densitymapbox Heatmap auf OpenStreetMap",
+    mime_type="text/html;profile=mcp-app",
+    meta=_UI_META,
+)
 def map_resource() -> str:
     return load_mcp_html("map.html")
 
 
-@mcp.resource(COMPARE_URI, mime_type="text/html;profile=mcp-app", meta=_RESOURCE_META)
+@mcp.resource(
+    COMPARE_URI,
+    name="Staedtevergleich",
+    description="Plotly-Chart: eine Variable ueber mehrere Staedte auf gemeinsamer Zeitachse",
+    mime_type="text/html;profile=mcp-app",
+    meta=_UI_META,
+)
 def compare_resource() -> str:
     return load_mcp_html("compare.html")
 
@@ -353,31 +373,51 @@ def show_air_quality_map(
     """Raumliche Verteilung von Saharastaub, SO2 und PM2.5 auf einer Europakarte.
 
     Zeigt Konzentrationen als farbige Marker in einem +-5-Grad-Bereich um den Standort.
-    Alle drei Schadstoffe sind enthalten.
+    Alle drei Schadstoffe sind enthalten — die UI laedt die Daten pro Variable nach.
 
     Args:
         lat: Breitengrad (Kartenmitte)
         lon: Langengrad (Kartenmitte)
         days: Anzahl Tage (Standard 3)
     """
-    days = min(max(1, days), 14)
-
-    variables = remote.get_map_data(lat, lon, radius_deg=5.0)
-    if not variables:
-        return _error_result("Keine Kartendaten verfugbar.")
-
     last_ts = remote.get_last_timestamp() or _today_str()
+    var_labels = [label for _, (_, _, label, _) in cams.VARIABLES.items()]
 
     data = {
-        "variables":  variables,
-        "timestamp":  last_ts,
+        "variables": list(cams.VARIABLES.keys()),
+        "variable_labels": {k: v[2] for k, v in cams.VARIABLES.items()},
+        "timestamp": last_ts,
         "center_lat": lat,
         "center_lon": lon,
     }
-    var_labels = [v["label"] for v in variables.values()]
-    n_points   = sum(len(v["values"]) for v in variables.values())
-    summary = f"Karte {lat:.1f}N {lon:.1f}E: {', '.join(var_labels)} | {n_points} Punkte | {last_ts}"
+    summary = f"Karte {lat:.1f}N {lon:.1f}E: {', '.join(var_labels)} | {last_ts}"
     return _ok_result(summary, data)
+
+
+@mcp.tool(meta={"ui": {"resourceUri": MAP_URI, "visibility": ["app"]}})
+def get_map_variable(
+    lat: float,
+    lon: float,
+    variable: str = "dust",
+) -> CallToolResult:
+    """Kartendaten fuer eine Variable laden (wird von der Map-UI aufgerufen).
+
+    Args:
+        lat: Breitengrad (Kartenmitte)
+        lon: Langengrad (Kartenmitte)
+        variable: "dust", "so2" oder "pm2p5"
+    """
+    if variable not in cams.VARIABLES:
+        return _error_result(f"Unbekannte Variable '{variable}'.")
+
+    full_data = remote.get_map_data(lat, lon, radius_deg=5.0, max_grid=100)
+    if variable not in full_data:
+        return _error_result(f"Keine Daten fuer {variable}.")
+
+    return _ok_result(
+        f"{variable} Kartendaten: {len(full_data[variable]['lats'])} Punkte",
+        full_data[variable],
+    )
 
 
 @mcp.tool(meta={"ui": {"resourceUri": COMPARE_URI}})

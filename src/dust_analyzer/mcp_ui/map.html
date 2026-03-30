@@ -3,152 +3,189 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Luftqualität Karte</title>
+  <title>Luftqualitaet Karte</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e0e0e0; padding: 16px; }
-    h2 { font-size: 16px; margin-bottom: 4px; }
-    .meta { font-size: 12px; color: #888; margin-bottom: 10px; }
+    html, body { height: 100%; }
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e0e0e0; padding: 16px;
+           display: flex; flex-direction: column; }
+    h2 { font-size: 15px; margin-bottom: 2px; }
+    .meta { font-size: 11px; color: #888; margin-bottom: 6px; }
     .meta a { color: #7eb8d4; }
-    .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+    .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13px; }
     .controls select {
       background: #1a1e2a; color: #e0e0e0; border: 1px solid #333;
       padding: 4px 8px; border-radius: 4px; font-size: 13px;
     }
-    #plot { height: 72vh; width: 100%; border-radius: 8px; overflow: hidden; }
+    .controls .status { font-size: 11px; color: #666; }
+    #plot { flex: 1; min-height: 300px; }
+    .footer { font-size: 10px; color: #555; margin-top: 6px; }
+    .footer a { color: #7eb8d4; }
     .error { color: #e05252; padding: 20px; }
   </style>
 </head>
 <body>
-  <h2 id="title">Luftqualität — lädt …</h2>
+  <h2 id="title">Luftqualitaet Karte — laedt …</h2>
   <div class="meta">
-    Quelle: <a href="https://ads.atmosphere.copernicus.eu/datasets/cams-europe-air-quality-forecasts" target="_blank">CAMS European Air Quality Forecasts</a>
-    · Heatmap auf OpenStreetMap
+    Quelle: <a href="https://ads.atmosphere.copernicus.eu/datasets/cams-europe-air-quality-forecasts" target="_blank">CAMS</a>
+    · Bodenniveau (0 m)
   </div>
   <div class="controls">
     <label for="var-select">Variable:</label>
-    <select id="var-select"></select>
+    <select id="var-select" disabled></select>
+    <span class="status" id="status"></span>
   </div>
   <div id="plot"></div>
+  <div class="footer">
+    <a href="https://github.com/synapticore-io/dust-analyzer" target="_blank">synapticore-io/dust-analyzer</a>
+  </div>
   <div id="error" class="error" style="display:none"></div>
   <script type="module">
     import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@1.3.2/app-with-deps";
 
-    const COLORSCALES = { dust: 'YlOrBr', so2: 'Reds', pm2p5: 'Blues' };
-    let allVars = {};
+    const COLORSCALES = { dust: "YlOrBr", so2: "Reds", pm2p5: "Blues" };
+    const varCache = {};
     let centerLat = 50, centerLon = 10;
 
+    const app = new App({ name: "Dust Analyzer Map", version: "7.0.0" });
+    const errEl = document.getElementById("error");
+    const plotEl = document.getElementById("plot");
+    const sel = document.getElementById("var-select");
+    const statusEl = document.getElementById("status");
+
     function percentile(arr, p) {
-      const sorted = [...arr].filter(v => v > 0).sort((a, b) => a - b);
+      const sorted = arr.filter(v => v > 0).sort((a, b) => a - b);
       if (!sorted.length) return 1;
-      const idx = Math.floor(sorted.length * p);
-      return sorted[Math.min(idx, sorted.length - 1)];
+      return sorted[Math.min(Math.floor(sorted.length * p), sorted.length - 1)];
     }
 
     function renderVar(key) {
-      const v = allVars[key];
+      const v = varCache[key];
       if (!v) return;
 
-      const p75 = percentile(v.values, 0.75);
-      const p95 = percentile(v.values, 0.95);
+      const p90 = percentile(v.values, 0.90);
+      const h = plotEl.clientHeight || 500;
 
-      Plotly.react('plot', [{
-        type: 'densitymapbox',
+      Plotly.react(plotEl, [{
+        type: "scattergeo",
         lat: v.lats,
         lon: v.lons,
-        z: v.values,
-        radius: 25,
-        colorscale: COLORSCALES[key] || 'YlOrRd',
-        zmin: 0,
-        zmax: p75 + (p95 - p75) * 0.5,
-        opacity: 0.75,
-        colorbar: {
-          title: { text: v.label, font: { size: 11, color: '#aaa' } },
-          tickfont: { size: 10, color: '#aaa' },
-          thickness: 14,
-          len: 0.5,
+        mode: "markers",
+        marker: {
+          symbol: "square",
+          size: 5,
+          color: v.values,
+          colorscale: COLORSCALES[key] || "YlOrRd",
+          cmin: 0,
+          cmax: p90,
+          opacity: 0.85,
+          line: { width: 0 },
+          colorbar: {
+            title: { text: v.label, font: { size: 11, color: "#aaa" } },
+            tickfont: { size: 10, color: "#aaa" },
+            thickness: 14, len: 0.6,
+          },
         },
-        hovertemplate: '<b>%{z:.1f} µg/m³</b><br>%{lat:.2f}°N, %{lon:.2f}°E<extra>' + v.label + '</extra>',
+        text: v.values.map(x => x.toFixed(1) + " ug/m3"),
+        hovertemplate: "<b>%{text}</b><br>%{lat:.2f}N, %{lon:.2f}E<extra>" + v.label + "</extra>",
       }], {
-        template: 'plotly_dark',
-        paper_bgcolor: '#0f1117',
-        mapbox: {
-          style: 'open-street-map',
-          center: { lat: centerLat, lon: centerLon },
-          zoom: 5,
+        height: h,
+        paper_bgcolor: "#0f1117",
+        plot_bgcolor: "#0f1117",
+        margin: { t: 0, r: 0, l: 0, b: 0 },
+        geo: {
+          fitbounds: "locations",
+          projection: { type: "mercator" },
+          showland: true,
+          landcolor: "#1a1e28",
+          showocean: true,
+          oceancolor: "#0d1018",
+          showlakes: true,
+          lakecolor: "#0d1018",
+          showcountries: true,
+          countrycolor: "#444",
+          countrywidth: 0.8,
+          showcoastlines: true,
+          coastlinecolor: "#555",
+          coastlinewidth: 0.8,
+          showsubunits: true,
+          subunitcolor: "#333",
+          bgcolor: "#0f1117",
+          resolution: 50,
         },
-        margin: { t: 10, r: 10, l: 10, b: 10 },
       }, {
-        responsive: true,
-        displayModeBar: true,
-        displaylogo: false,
-        modeBarButtonsToRemove: ['select2d', 'lasso2d'],
+        responsive: true, displayModeBar: true, displaylogo: false,
+        modeBarButtonsToRemove: ["select2d", "lasso2d"],
       });
+
+      statusEl.textContent = `${v.lats.length} Punkte`;
     }
 
-    const app = new App({ name: "Dust Analyzer Map", version: "3.0.0" });
-    const errEl = document.getElementById('error');
-    const sel = document.getElementById('var-select');
-
-    sel.addEventListener('change', () => renderVar(sel.value));
-
-    function renderStructured(data) {
-      errEl.style.display = 'none';
+    async function loadVariable(key) {
+      if (varCache[key]) {
+        renderVar(key);
+        return;
+      }
+      statusEl.textContent = "Lade " + key + " …";
       try {
-        if (!data || typeof data !== 'object') {
-          errEl.style.display = 'block';
-          errEl.textContent = 'Keine structuredContent vom Tool.';
-          return;
+        const result = await app.callServerTool({
+          name: "get_map_variable",
+          arguments: { lat: centerLat, lon: centerLon, variable: key },
+        });
+        if (result.structuredContent && !result.structuredContent.error) {
+          varCache[key] = result.structuredContent;
+          renderVar(key);
+        } else {
+          statusEl.textContent = "Fehler: " + (result.structuredContent?.error || "unbekannt");
         }
-        if (data.error) {
-          errEl.style.display = 'block';
-          errEl.textContent = String(data.error);
-          return;
-        }
+      } catch (e) {
+        statusEl.textContent = "Laden fehlgeschlagen: " + (e?.message || e);
+      }
+    }
 
-        allVars = data.variables || {};
+    sel.addEventListener("change", () => loadVariable(sel.value));
+
+    app.ontoolresult = (params) => {
+      errEl.style.display = "none";
+      if (params.isError) {
+        errEl.style.display = "block";
+        errEl.textContent = params.structuredContent?.error ||
+          params.content?.find(c => c.type === "text")?.text || "Fehler";
+        return;
+      }
+      try {
+        const data = params.structuredContent;
+        if (!data) return;
+
         centerLat = data.center_lat ?? 50;
         centerLon = data.center_lon ?? 10;
 
-        sel.innerHTML = '';
-        const keys = Object.keys(allVars);
-        keys.forEach(k => {
-          const opt = document.createElement('option');
+        const vars = data.variables || [];
+        const labels = data.variable_labels || {};
+
+        sel.innerHTML = "";
+        vars.forEach(k => {
+          const opt = document.createElement("option");
           opt.value = k;
-          opt.textContent = allVars[k].label || k;
+          opt.textContent = labels[k] || k;
           sel.appendChild(opt);
         });
+        sel.disabled = false;
 
-        document.getElementById('title').textContent =
-          `Luftqualität · ${centerLat.toFixed(1)}°N, ${centerLon.toFixed(1)}°E · ${data.timestamp || ''}`;
+        document.getElementById("title").textContent =
+          `Luftqualitaet · ${centerLat.toFixed(1)}N, ${centerLon.toFixed(1)}E · ${data.timestamp || ""}`;
 
-        if (keys.length) renderVar(keys[0]);
+        if (vars.length) loadVariable(vars[0]);
       } catch (e) {
-        errEl.style.display = 'block';
-        errEl.textContent = 'Fehler: ' + e.message;
+        errEl.style.display = "block";
+        errEl.textContent = "Fehler: " + e.message;
       }
-    }
-
-    app.ontoolresult = (params) => {
-      if (params.isError) {
-        errEl.style.display = 'block';
-        const sc = params.structuredContent;
-        errEl.textContent =
-          (sc && typeof sc === 'object' && sc.error != null && String(sc.error)) ||
-          params.content?.find((c) => c.type === 'text')?.text ||
-          'Tool-Fehler';
-        return;
-      }
-      renderStructured(params.structuredContent);
     };
 
-    try {
-      await app.connect();
-    } catch (e) {
-      errEl.style.display = 'block';
-      errEl.textContent = 'ui/initialize fehlgeschlagen: ' + (e && e.message ? e.message : String(e));
-      console.error(e);
+    try { await app.connect(); } catch (e) {
+      errEl.style.display = "block";
+      errEl.textContent = "MCP Verbindung fehlgeschlagen: " + (e?.message || e);
     }
   </script>
 </body>
